@@ -1,5 +1,7 @@
 # BẢNG CHECKLIST TOÀN DIỆN — LAB 25: GPU FINOPS OPTIMIZATION
-
+> **Học viên:** Nguyễn Văn Hưng  
+> **MSHV:** 2A20260284  
+> **Khóa:** 3B  
 > **Dự án:** Lab 25 — GPU FinOps Optimization Workshop (AICB Phase 2 · Track 2)  
 > **Mục tiêu:** Kiểm toán, tối ưu hóa và cắt giảm 40–95% chi phí GPU cho startup *NimbusAI* (đo bằng `$/1M-token`).  
 > **Tổng điểm Rubric:** **100 điểm** (A: 30đ | B: 20đ | C: 30đ | D: 20đ) + Bonus mở rộng.

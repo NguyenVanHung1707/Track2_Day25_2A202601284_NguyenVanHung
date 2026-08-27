@@ -1,5 +1,8 @@
 # BÁO CÁO PHÂN TÍCH KỸ THUẬT & CHIẾN LƯỢC TỐI ƯU HÓA GPU FINOPS
-## Khách hàng: NimbusAI (AI Startup) | Tác giả: FinOps Lead Engineer
+> **Học viên:** Nguyễn Văn Hưng  
+> **MSHV:** 2A20260284  
+> **Khóa:** 3B  
+> **Khách hàng:** NimbusAI (AI Startup) | **Vị trí:** FinOps Lead Engineer  
 
 ---
 
