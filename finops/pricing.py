@@ -52,6 +52,35 @@ def discount_stack(
     return cache_mult * batch_mult
 
 
+def cache_is_worth_it(
+    avg_cache_reads: float,
+    write_cost_per_m: float,
+    read_price_per_m: float,
+    read_discount: float = 0.10,
+) -> bool:
+    """Prompt caching only pays off when total savings from reads exceed cache write/storage cost.
+    
+    Savings per 1M read tokens = read_price_per_m * (1 - read_discount).
+    Break-even reads threshold = write_cost_per_m / (read_price_per_m * (1 - read_discount)).
+    """
+    savings_per_read = read_price_per_m * (1.0 - read_discount)
+    if savings_per_read <= 0:
+        return False
+    return (avg_cache_reads * savings_per_read) >= write_cost_per_m
+
+
+def cache_break_even_reads(
+    write_cost_per_m: float,
+    read_price_per_m: float,
+    read_discount: float = 0.10,
+) -> float:
+    """Calculate minimum average read count per cached prefix to break even."""
+    savings_per_read = read_price_per_m * (1.0 - read_discount)
+    if savings_per_read <= 0:
+        return float("inf")
+    return write_cost_per_m / savings_per_read
+
+
 def break_even_utilization(discount_frac: float) -> float:
     """Utilization at which a commitment pays off ~= 1 - discount.
 
@@ -60,15 +89,50 @@ def break_even_utilization(discount_frac: float) -> float:
     return max(0.0, min(1.0, 1.0 - discount_frac))
 
 
-def recommend_tier(hours_per_day: float, interruptible: bool, reserved_discount: float = 0.45) -> str:
-    """Pick a purchasing tier from a workload's duty cycle + interruptibility.
+def recommend_tier(
+    hours_per_day: float,
+    interruptible: bool,
+    reserved_discount: float = 0.45,
+    gpu_type: str | None = None,
+    job_days: int | None = None,
+    interruption_rate: float | None = None,
+) -> str:
+    """Pick a purchasing tier from a workload's duty cycle, interruptibility, GPU type, and duration.
 
-    DOCUMENTED simple policy (instructor extension point — swap in your own):
-      - interruptible & not 24/7  -> 'spot'      (checkpoint and ride the discount)
-      - duty cycle >= break-even  -> 'reserved'  (steady, high utilization)
-      - otherwise                 -> 'on_demand' (spiky / low duty)
+    Extensions:
+      - Interruption risk varies by GPU: H100/H200 (~3-5%) vs A10G/L4 (~10-15%).
+      - Duration & commitment horizon: 3-year commitment (45% discount) requires job_days >= 365.
+        For shorter projects (e.g. job_days < 180), 1-year reserved (~28% discount, break-even 72%)
+        or on-demand/spot is preferred.
     """
     duty = max(0.0, hours_per_day) / 24.0
+
+    # If advanced parameters are specified
+    if interruption_rate is not None or gpu_type is not None or job_days is not None:
+        # GPU-specific interruption rate estimation if not explicitly given
+        ir = interruption_rate
+        if ir is None:
+            ir = 0.03 if gpu_type in ("H100", "H200") else (0.05 if gpu_type == "A100" else 0.10)
+
+        # Interruptible workloads: evaluate spot feasibility
+        if interruptible:
+            # If interrupt rate is very high (>20%) and duty cycle is 24/7, spot risk might be too high
+            if ir < 0.20 and hours_per_day <= 24:
+                return "spot"
+
+        # Duration-aware reserved commitment
+        effective_reserved_discount = reserved_discount
+        if job_days is not None and job_days < 365:
+            # For short-term workloads (< 1 year), cannot lock 3-year reserved (45% off).
+            # 1-year reserved discount is ~28% -> break-even duty cycle = 72% (17.3h/day)
+            effective_reserved_discount = 0.28
+
+        be = break_even_utilization(effective_reserved_discount)
+        if duty >= be:
+            return "reserved"
+        return "on_demand"
+
+    # Default documented simple policy (fully backward compatible)
     be = break_even_utilization(reserved_discount)
     if interruptible and hours_per_day < 24:
         return "spot"

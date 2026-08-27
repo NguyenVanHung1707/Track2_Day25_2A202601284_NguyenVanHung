@@ -46,6 +46,9 @@ def run(verbose: bool = True) -> dict:
         on_demand = num(catalog_by_type()[s["gpu_type"]]["on_demand_hr"])
         idle_waste += metrics.idle_waste_usd(s["idle_hours"], on_demand)
 
+    # Extension 2: MBU Right-sizing Analysis
+    mbu_rightsizing = metrics.mbu_rightsizing_analysis(summary, cat)
+
     if verbose:
         print("== M1 Efficiency Audit ==")
         print(f"{'GPU':14}{'type':7}{'util%':>7}{'MFU':>7}{'MBU':>7}{'idle_h':>8}")
@@ -54,7 +57,19 @@ def run(verbose: bool = True) -> dict:
         print(f"\nGPU-Util LIES (util>=90% but MFU<30%): {[l['gpu_id'] for l in lies]}")
         print(f"Idle waste (1 day): ${idle_waste:,.2f}  ->  ${idle_waste*30:,.0f}/month")
 
-    return {"summary": summary, "lies": lies, "idle_waste_daily": round(idle_waste, 2)}
+        if mbu_rightsizing["recommendations"]:
+            print("\n--- Extension 2: MBU-Aware Right-sizing Recommendations ---")
+            print(f"{'GPU ID':14}{'Current':9}{'Achieved BW':>13}{'Recommended':13}{'Old $/hr':>10}{'New $/hr':>10}{'Monthly Save':>14}")
+            for rec in mbu_rightsizing["recommendations"]:
+                print(f"{rec['gpu_id']:14}{rec['current_gpu']:9}{rec['achieved_bw_tbs']:>10.2f} TB/s  {rec['recommended_gpu']:13}${rec['cur_hourly_cost']:>9.2f}${rec['new_hourly_cost']:>9.2f}${rec['monthly_savings']:>13,.2f}")
+            print(f"Total MBU Right-sizing Monthly Potential Savings: ${mbu_rightsizing['total_monthly_savings']:,.2f}")
+
+    return {
+        "summary": summary,
+        "lies": lies,
+        "idle_waste_daily": round(idle_waste, 2),
+        "mbu_rightsizing": mbu_rightsizing,
+    }
 
 
 if __name__ == "__main__":
